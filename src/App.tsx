@@ -21,7 +21,8 @@ import {
 import { motion, Reorder, AnimatePresence } from "motion/react";
 
 // Set up PDF.js worker using a stable 4.x version from cdnjs
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs`;
+// Using the legacy build for better compatibility with older Android browsers
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.js`;
 
 interface PDFFile {
   id: string;
@@ -41,7 +42,14 @@ export default function App() {
   // Load theme from localStorage
   useEffect(() => {
     const savedTheme = localStorage.getItem("theme");
-    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    
+    // Fallback for older browsers that don't support matchMedia
+    let prefersDark = false;
+    try {
+      prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    } catch (e) {
+      console.warn("matchMedia not supported");
+    }
     
     if (savedTheme === "dark" || (!savedTheme && prefersDark)) {
       setIsDarkMode(true);
@@ -74,13 +82,15 @@ export default function App() {
   };
 
   const generateThumbnail = async (file: File): Promise<string | undefined> => {
+    let pdf: any = null;
     try {
       const arrayBuffer = await file.arrayBuffer();
       const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
-      const pdf = await loadingTask.promise;
+      pdf = await loadingTask.promise;
       const page = await pdf.getPage(1);
       
-      const viewport = page.getViewport({ scale: 0.5 });
+      // Use a smaller scale for older devices to save memory
+      const viewport = page.getViewport({ scale: 0.4 });
       const canvas = document.createElement("canvas");
       const context = canvas.getContext("2d");
       
@@ -94,10 +104,23 @@ export default function App() {
         viewport: viewport,
       }).promise;
       
-      return canvas.toDataURL("image/jpeg", 0.8);
+      // Use lower quality jpeg to save memory on older devices
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.6);
+      
+      // Explicit cleanup for older engines
+      canvas.width = 0;
+      canvas.height = 0;
+      
+      return dataUrl;
     } catch (error) {
       console.error("Error generating thumbnail:", error);
       return undefined;
+    } finally {
+      if (pdf) {
+        try {
+          await pdf.destroy();
+        } catch (e) {}
+      }
     }
   };
 
@@ -115,6 +138,9 @@ export default function App() {
           size: file.size,
           previewUrl,
         });
+        
+        // Small delay to prevent UI freezing on older CPUs
+        await new Promise(resolve => setTimeout(resolve, 50));
       }
     }
     
@@ -145,6 +171,9 @@ export default function App() {
         const pdf = await PDFDocument.load(buffer);
         const pages = await mergedPdf.copyPages(pdf, pdf.getPageIndices());
         pages.forEach((page) => mergedPdf.addPage(page));
+        
+        // Allow UI to breathe between merges
+        await new Promise(resolve => setTimeout(resolve, 20));
       }
 
       const mergedBytes = await mergedPdf.save();
@@ -167,7 +196,7 @@ export default function App() {
   const formattedSize = (totalSize / (1024 * 1024)).toFixed(2);
 
   return (
-    <div className="min-h-screen bg-[#F5F7FA] dark:bg-[#0F172A] text-[#1D1D1F] dark:text-[#F8FAFC] transition-colors duration-300 font-sans">
+    <div className="min-h-screen bg-[#F5F7FA] dark:bg-[#0F172A] text-[#1D1D1F] dark:text-[#F8FAFC] transition-colors duration-300 font-sans will-change-[background-color]">
       {/* Navbar */}
       <header className="max-w-7xl mx-auto px-6 py-8 flex justify-between items-center">
         <div className="flex items-center gap-2 text-2xl font-bold tracking-tight">
@@ -249,10 +278,11 @@ export default function App() {
               <p className="text-sm text-slate-400">100% secure, client-side processing</p>
             </div>
             <motion.button 
-              whileHover={{ scale: 1.05, translateY: -2 }}
-              whileTap={{ scale: 0.95, translateY: 0 }}
+              whileHover={{ scale: 1.05, y: -4 }}
+              whileTap={{ scale: 0.94, y: 0 }}
+              transition={{ type: "spring", stiffness: 400, damping: 15 }}
               disabled={isProcessing}
-              className={`mt-4 px-8 py-3 rounded-xl font-medium shadow-lg transition-all ${isProcessing ? "bg-slate-400 cursor-not-allowed" : "bg-black dark:bg-white text-white dark:text-black hover:shadow-xl"}`}
+              className={`mt-4 px-8 py-3 rounded-xl font-medium shadow-lg transition-all ${isProcessing ? "bg-slate-400 cursor-not-allowed" : "bg-black dark:bg-white text-white dark:text-black hover:shadow-xl active:shadow-inner"}`}
             >
               Select Files
             </motion.button>
@@ -351,7 +381,7 @@ export default function App() {
                   relative overflow-hidden flex items-center gap-3 px-12 py-5 rounded-2xl font-bold text-lg shadow-2xl transition-all
                   ${isMerging || isProcessing || files.length < 2 
                     ? "bg-slate-200 dark:bg-slate-800 text-slate-400 cursor-not-allowed" 
-                    : "bg-blue-600 hover:bg-blue-700 text-white hover:-translate-y-1 active:translate-y-0"}
+                    : "bg-blue-600 hover:bg-blue-700 text-white hover:-translate-y-1 active:translate-y-0 active:shadow-inner"}
                 `}
               >
                 {isMerging ? (
