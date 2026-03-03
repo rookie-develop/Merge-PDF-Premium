@@ -6,6 +6,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import { PDFDocument } from "pdf-lib";
 import * as pdfjsLib from "pdfjs-dist";
+// @ts-ignore
+import pdfjsWorker from "pdfjs-dist/build/pdf.worker.mjs?url";
 import { 
   FileText, 
   Upload, 
@@ -20,9 +22,8 @@ import {
 } from "lucide-react";
 import { motion, Reorder, AnimatePresence } from "motion/react";
 
-// Set up PDF.js worker using a stable 4.x version from cdnjs
-// Using the legacy build for better compatibility with older Android browsers
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.js`;
+// Set up PDF.js worker using the bundled worker for reliability
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
 interface PDFFile {
   id: string;
@@ -89,8 +90,8 @@ export default function App() {
       pdf = await loadingTask.promise;
       const page = await pdf.getPage(1);
       
-      // Use a smaller scale for older devices to save memory
-      const viewport = page.getViewport({ scale: 0.4 });
+      // Balanced scale for quality and memory
+      const viewport = page.getViewport({ scale: 0.6 });
       const canvas = document.createElement("canvas");
       const context = canvas.getContext("2d");
       
@@ -104,8 +105,8 @@ export default function App() {
         viewport: viewport,
       }).promise;
       
-      // Use lower quality jpeg to save memory on older devices
-      const dataUrl = canvas.toDataURL("image/jpeg", 0.6);
+      // Balanced quality for jpeg
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.75);
       
       // Explicit cleanup for older engines
       canvas.width = 0;
@@ -328,19 +329,21 @@ export default function App() {
                   <Reorder.Item
                     key={file.id}
                     value={file}
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.95 }}
-                    transition={{ duration: 0.2 }}
                     className="group"
                   >
-                    <div className="flex items-center gap-4 p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing">
+                    <motion.div 
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      transition={{ duration: 0.2 }}
+                      className="flex items-center gap-4 p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing"
+                    >
                       <div className="text-slate-300 dark:text-slate-600">
                         <GripVertical size={20} />
                       </div>
                       
                       {/* PDF Preview / Icon */}
-                      <div className="w-16 h-20 rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-900 flex items-center justify-center text-red-600 dark:text-red-400 border border-slate-200 dark:border-slate-700 shrink-0">
+                      <div className="w-14 h-20 rounded-md overflow-hidden bg-slate-100 dark:bg-slate-900 flex items-center justify-center text-red-600 dark:text-red-400 border border-slate-200 dark:border-slate-700 shrink-0 shadow-sm">
                         {file.previewUrl ? (
                           <img 
                             src={file.previewUrl} 
@@ -366,7 +369,7 @@ export default function App() {
                       >
                         <X size={18} />
                       </button>
-                    </div>
+                    </motion.div>
                   </Reorder.Item>
                 ))}
               </AnimatePresence>
