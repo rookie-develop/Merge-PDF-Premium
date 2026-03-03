@@ -41,25 +41,30 @@ export default function App() {
   // Load theme from localStorage
   useEffect(() => {
     const savedTheme = localStorage.getItem("theme");
-    if (savedTheme === "dark") {
+    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    
+    if (savedTheme === "dark" || (!savedTheme && prefersDark)) {
       setIsDarkMode(true);
       document.documentElement.classList.add("dark");
     } else {
+      setIsDarkMode(false);
       document.documentElement.classList.remove("dark");
     }
   }, []);
 
   // Toggle theme
   const toggleTheme = () => {
-    const newTheme = !isDarkMode;
-    setIsDarkMode(newTheme);
-    if (newTheme) {
-      document.documentElement.classList.add("dark");
-      localStorage.setItem("theme", "dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-      localStorage.setItem("theme", "light");
-    }
+    setIsDarkMode((prev) => {
+      const next = !prev;
+      if (next) {
+        document.documentElement.classList.add("dark");
+        localStorage.setItem("theme", "dark");
+      } else {
+        document.documentElement.classList.remove("dark");
+        localStorage.setItem("theme", "light");
+      }
+      return next;
+    });
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -169,13 +174,29 @@ export default function App() {
           <Layers className="text-blue-600 dark:text-blue-400" />
           <span>Merge<span className="text-blue-600 dark:text-blue-400">PDF</span></span>
         </div>
-        <button
+        <motion.button
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.9, rotate: 15 }}
           onClick={toggleTheme}
-          className="p-3 rounded-full bg-white dark:bg-slate-800 shadow-sm border border-slate-200 dark:border-slate-700 hover:scale-110 transition-transform"
+          className="p-3 rounded-full bg-white dark:bg-slate-800 shadow-sm border border-slate-200 dark:border-slate-700 transition-all duration-300"
           aria-label="Toggle theme"
         >
-          {isDarkMode ? <Sun size={20} className="text-yellow-400" /> : <Moon size={20} className="text-slate-600" />}
-        </button>
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              key={isDarkMode ? "dark" : "light"}
+              initial={{ y: -20, opacity: 0, rotate: -90 }}
+              animate={{ y: 0, opacity: 1, rotate: 0 }}
+              exit={{ y: 20, opacity: 0, rotate: 90 }}
+              transition={{ duration: 0.2 }}
+            >
+              {isDarkMode ? (
+                <Sun size={20} className="text-yellow-400" />
+              ) : (
+                <Moon size={20} className="text-slate-600" />
+              )}
+            </motion.div>
+          </AnimatePresence>
+        </motion.button>
       </header>
 
       <main className="max-w-4xl mx-auto px-6 pb-20">
